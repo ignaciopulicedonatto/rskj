@@ -109,6 +109,8 @@ public class BridgeStorageProvider {
 
     private Map<Sha256Hash, CoinbaseInformation> coinbaseInformationMap;
 
+    private Map<Sha256Hash, byte[]> derivationArgumentsP2SHToSave;
+
     public BridgeStorageProvider(Repository repository, RskAddress contractAddress, BridgeConstants bridgeConstants, ActivationConfig.ForBlock activations) {
         this.repository = repository;
         this.contractAddress = contractAddress;
@@ -592,6 +594,39 @@ public class BridgeStorageProvider {
             safeSaveToRepository(getStorageKeyForCoinbaseInformation(blockHash), data, BridgeSerializationUtils::serializeCoinbaseInformation));
     }
 
+    public byte[] getFastBridgeFederationP2SH(Sha256Hash derivationArgsHash) {
+        if (!activations.isActive(RSKIP176)) {
+            return null;
+        }
+
+        byte[] fastBridgeFedP2SH = repository.getStorageBytes(contractAddress, getStorageKeyForDerivationP2SHByHash(derivationArgsHash));
+
+        return fastBridgeFedP2SH;
+    }
+
+    public void setDerivationArgumentsP2SH(Sha256Hash derivationArgsHash, byte[] fastBridgeFedP2SH) {
+        if (activations.isActive(RSKIP176)) {
+            if (derivationArgumentsP2SHToSave == null) {
+                derivationArgumentsP2SHToSave = new HashMap<>();
+            }
+            derivationArgumentsP2SHToSave.put(derivationArgsHash, fastBridgeFedP2SH);
+        }
+    }
+
+    protected Map<Sha256Hash, byte[]> getDerivationArgumentsP2SHToSave() {
+        return derivationArgumentsP2SHToSave;
+    }
+
+    private void saveDerivationArgumentsP2SH() {
+        if (derivationArgumentsP2SHToSave == null) {
+            return;
+        }
+
+        derivationArgumentsP2SHToSave.forEach((derivationArgsHash, fastBridgeFedP2SH) ->
+                repository.addStorageBytes(contractAddress, getStorageKeyForDerivationP2SHByHash(derivationArgsHash), fastBridgeFedP2SH)
+        );
+    }
+
     public void save() throws IOException {
         saveBtcTxHashesAlreadyProcessed();
 
@@ -619,6 +654,8 @@ public class BridgeStorageProvider {
         saveHeightBtcTxHashAlreadyProcessed();
 
         saveCoinbaseInformations();
+
+        saveDerivationArgumentsP2SH();
     }
 
     private DataWord getStorageKeyForBtcTxHashAlreadyProcessed(Sha256Hash btcTxHash) {
@@ -627,6 +664,10 @@ public class BridgeStorageProvider {
 
     private DataWord getStorageKeyForCoinbaseInformation(Sha256Hash btcTxHash) {
         return DataWord.fromLongString("coinbaseInformation-" + btcTxHash.toString());
+    }
+
+    private DataWord getStorageKeyForDerivationP2SHByHash(Sha256Hash derivationHash) {
+        return DataWord.fromLongString("fastBridgeP2SH-" + derivationHash.toString());
     }
 
     private Optional<Integer> getStorageVersion(DataWord versionKey) {

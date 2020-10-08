@@ -2149,6 +2149,174 @@ public class BridgeStorageProviderTest {
         );
     }
 
+    @Test
+    public void getFastBridgeFederationP2SH_afterRSKIP176_Ok() {
+        Repository repository = mock(Repository.class);
+
+        Sha256Hash hash = Sha256Hash.ZERO_HASH;
+        byte[] fastBridgeFedP2SH = new byte[]{(byte) 0xaa};
+
+        when(repository.getStorageBytes(PrecompiledContracts.BRIDGE_ADDR, DataWord.fromLongString("fastBridgeP2SH-" + hash.toString())))
+                .thenReturn(fastBridgeFedP2SH);
+
+        BridgeStorageProvider provider = new BridgeStorageProvider(
+                repository,
+                PrecompiledContracts.BRIDGE_ADDR,
+                config.getNetworkConstants().getBridgeConstants(),
+                activationsAllForks
+        );
+
+        assertEquals(fastBridgeFedP2SH, provider.getFastBridgeFederationP2SH(hash));
+    }
+
+    @Test
+    public void getFastBridgeFederationP2SH_beforeRSKIP176_Ok() {
+        Repository repository = mock(Repository.class);
+
+        Sha256Hash hash = Sha256Hash.ZERO_HASH;
+
+        byte[] fastBridgeFedP2SH = new byte[]{(byte) 0xaa};
+
+        when(repository.getStorageBytes(PrecompiledContracts.BRIDGE_ADDR, DataWord.fromLongString("fastBridgeP2SH-" + hash.toString())))
+                .thenReturn(fastBridgeFedP2SH);
+
+        BridgeStorageProvider provider = new BridgeStorageProvider(
+                repository,
+                PrecompiledContracts.BRIDGE_ADDR,
+                config.getNetworkConstants().getBridgeConstants(),
+                activationsBeforeFork
+        );
+
+        byte[] result = provider.getFastBridgeFederationP2SH(hash);
+        Assert.assertNotEquals(fastBridgeFedP2SH, result);
+        Assert.assertNull(result);
+    }
+
+    @Test
+    public void getFastBridgeFederationP2SH_NotFound() {
+        Repository repository = mock(Repository.class);
+
+        Sha256Hash hash = Sha256Hash.ZERO_HASH;
+
+        byte[] fastBridgeFedP2SH = new byte[]{(byte) 0xaa};
+
+        when(repository.getStorageBytes(PrecompiledContracts.BRIDGE_ADDR, DataWord.fromLongString("fastBridgeP2SH-" + hash.toString())))
+                .thenReturn(null);
+
+        BridgeStorageProvider provider = new BridgeStorageProvider(
+                repository,
+                PrecompiledContracts.BRIDGE_ADDR,
+                config.getNetworkConstants().getBridgeConstants(),
+                activationsBeforeFork
+        );
+
+        byte[] result = provider.getFastBridgeFederationP2SH(hash);
+        Assert.assertNotEquals(fastBridgeFedP2SH,result);
+        Assert.assertNull(result);
+    }
+
+    @Test
+    public void setFastBridgeFederationP2SH_afterRSKIP176_Ok() {
+        Repository repository = mock(Repository.class);
+
+        Sha256Hash hash = Sha256Hash.ZERO_HASH;
+        byte[] fastBridgeFedP2SH = new byte[]{(byte) 0xaa};
+
+        BridgeStorageProvider provider = new BridgeStorageProvider(
+                repository,
+                PrecompiledContracts.BRIDGE_ADDR,
+                config.getNetworkConstants().getBridgeConstants(),
+                activationsAllForks
+        );
+
+        assertNull(provider.getFastBridgeFederationP2SH(hash));
+
+        provider.setDerivationArgumentsP2SH(hash, fastBridgeFedP2SH);
+        Map<Sha256Hash, byte[]> derivationArgs = provider.getDerivationArgumentsP2SHToSave();
+
+        Assert.assertEquals(1, derivationArgs.size());
+        Assert.assertTrue(derivationArgs.containsKey(hash));
+        Assert.assertTrue(derivationArgs.containsValue(fastBridgeFedP2SH));
+
+    }
+
+    @Test
+    public void setFastBridgeFederationP2SH_beforeRSKIP176_Ok() {
+        Repository repository = mock(Repository.class);
+
+        Sha256Hash hash = Sha256Hash.ZERO_HASH;
+        byte[] fastBridgeFedP2SH = new byte[]{(byte) 0xaa};
+
+        BridgeStorageProvider provider = new BridgeStorageProvider(
+                repository,
+                PrecompiledContracts.BRIDGE_ADDR,
+                config.getNetworkConstants().getBridgeConstants(),
+                activationsBeforeFork
+        );
+
+        assertNull(provider.getFastBridgeFederationP2SH(hash));
+
+        provider.setDerivationArgumentsP2SH(hash, fastBridgeFedP2SH);
+
+        Assert.assertNull(provider.getDerivationArgumentsP2SHToSave());
+    }
+
+    @Test
+    public void saveFastBridgeFederationP2SH_afterRSKIP176_Ok() throws IOException {
+        Repository repository = mock(Repository.class);
+
+        Sha256Hash hash = Sha256Hash.ZERO_HASH;
+        byte[] fastBridgeFedP2SH = new byte[]{(byte) 0xaa};
+
+        BridgeStorageProvider provider = new BridgeStorageProvider(
+                repository,
+                PrecompiledContracts.BRIDGE_ADDR,
+                config.getNetworkConstants().getBridgeConstants(),
+                activationsAllForks
+        );
+
+        assertNull(provider.getFastBridgeFederationP2SH(hash));
+
+        provider.setDerivationArgumentsP2SH(hash, fastBridgeFedP2SH);
+
+        provider.save();
+
+        verify(repository, times(1)).addStorageBytes(
+                PrecompiledContracts.BRIDGE_ADDR,
+                DataWord.fromLongString("fastBridgeP2SH-" + hash.toString()),
+                fastBridgeFedP2SH
+        );
+    }
+
+    @Test
+    public void saveFastBridgeFederationP2SH_beforeRSKIP176_Ok() throws IOException {
+        Repository repository = mock(Repository.class);
+
+        Sha256Hash hash = Sha256Hash.ZERO_HASH;
+        byte[] fastBridgeFedP2SH = new byte[]{(byte) 0xaa};
+
+        BridgeStorageProvider provider = new BridgeStorageProvider(
+                repository,
+                PrecompiledContracts.BRIDGE_ADDR,
+                config.getNetworkConstants().getBridgeConstants(),
+                activationsBeforeFork
+        );
+
+        assertNull(provider.getFastBridgeFederationP2SH(hash));
+
+        provider.setDerivationArgumentsP2SH(hash, fastBridgeFedP2SH);
+
+        provider.save();
+
+        verify(repository, never()).addStorageBytes(
+                PrecompiledContracts.BRIDGE_ADDR,
+                DataWord.fromLongString("fastBridgeP2SH-" + hash.toString()),
+                fastBridgeFedP2SH
+        );
+        Assert.assertNotEquals(fastBridgeFedP2SH, provider.getFastBridgeFederationP2SH(hash));
+        Assert.assertNull(provider.getFastBridgeFederationP2SH(hash));
+    }
+
     private BtcTransaction createTransaction() {
         BtcTransaction tx = new BtcTransaction(networkParameters);
         tx.addInput(PegTestUtils.createHash(), transactionOffset++, ScriptBuilder.createInputScript(new TransactionSignature(BigInteger.ONE, BigInteger.TEN)));
