@@ -20,6 +20,7 @@ package co.rsk.peg;
 
 import co.rsk.bitcoinj.core.*;
 import co.rsk.core.RskAddress;
+import co.rsk.peg.fastbridge.FastBridgeFederationInformation;
 import co.rsk.peg.whitelist.LockWhitelist;
 import co.rsk.peg.whitelist.LockWhitelistEntry;
 import co.rsk.peg.whitelist.OneOffWhiteListEntry;
@@ -1007,6 +1008,49 @@ public class BridgeSerializationUtilsTest {
     public void deserializeInteger() {
         Assert.assertEquals(123, BridgeSerializationUtils.deserializeInteger(RLP.encodeBigInteger(BigInteger.valueOf(123))).intValue());
         Assert.assertEquals(1200, BridgeSerializationUtils.deserializeInteger(RLP.encodeBigInteger(BigInteger.valueOf(1200))).intValue());
+    }
+
+    @Test
+    public void deserializeFederationBridge_no_data() {
+        Assert.assertNull(BridgeSerializationUtils.deserializeFederationBridge(null));
+        Assert.assertNull(BridgeSerializationUtils.deserializeFederationBridge(new byte[]{}));
+    }
+
+    @Test(expected = RuntimeException.class)
+    public void deserializeFederationBridge_one_data() {
+        byte[][] rlpElements = new byte[1][];
+        rlpElements[0] = RLP.encodeElement(new byte[]{(byte)0x11});
+
+        BridgeSerializationUtils.deserializeFederationBridge(RLP.encodeList(rlpElements));
+    }
+
+    @Test
+    public void deserializeFederationBridge_Ok() {
+        byte[][] rlpElements = new byte[2][];
+        rlpElements[0] = RLP.encodeElement(new byte[]{(byte)0x11});
+        rlpElements[1] = RLP.encodeElement(new byte[]{(byte)0x22});
+
+        FastBridgeFederationInformation result = BridgeSerializationUtils.deserializeFederationBridge(RLP.encodeList(rlpElements));
+
+        Assert.assertNotNull(result);
+        Assert.assertArrayEquals(new byte[]{(byte)0x11}, result.getFastBridgeFederationScriptHash());
+        Assert.assertArrayEquals(new byte[]{(byte)0x22}, result.getFederationScriptHash());
+    }
+
+    @Test
+    public void serializeFederationBridge_no_data() {
+        Assert.assertEquals(0, BridgeSerializationUtils.serializeFederationBridge(null).length);
+    }
+
+    @Test
+    public void serializeFederationBridge_Ok() {
+        FastBridgeFederationInformation fastBridge = new FastBridgeFederationInformation(new byte[]{(byte)0x11}, new byte[]{(byte)0x22} );
+        BridgeSerializationUtils.serializeFederationBridge(fastBridge);
+
+        FastBridgeFederationInformation result = BridgeSerializationUtils.deserializeFederationBridge(BridgeSerializationUtils.serializeFederationBridge(fastBridge));
+
+        Assert.assertArrayEquals(fastBridge.getFastBridgeFederationScriptHash(), result.getFastBridgeFederationScriptHash());
+        Assert.assertArrayEquals(fastBridge.getFederationScriptHash(), result.getFederationScriptHash());
     }
 
     private Address mockAddressHash160(String hash160) {

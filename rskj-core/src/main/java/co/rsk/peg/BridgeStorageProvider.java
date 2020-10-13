@@ -23,6 +23,7 @@ import co.rsk.config.BridgeConstants;
 import co.rsk.core.RskAddress;
 import co.rsk.crypto.Keccak256;
 import co.rsk.peg.bitcoin.CoinbaseInformation;
+import co.rsk.peg.fastbridge.FastBridgeFederationInformation;
 import co.rsk.peg.whitelist.LockWhitelist;
 import co.rsk.peg.whitelist.LockWhitelistEntry;
 import co.rsk.peg.whitelist.OneOffWhiteListEntry;
@@ -109,7 +110,8 @@ public class BridgeStorageProvider {
 
     private Map<Sha256Hash, CoinbaseInformation> coinbaseInformationMap;
 
-    private Map<Sha256Hash, byte[]> derivationArgumentsP2SHToSave;
+    private Map<Sha256Hash, byte[]> fastBridgeDerivationArgumentsScriptHashToSave;
+    private Map<Sha256Hash, FastBridgeFederationInformation> fastBridgeFederationInformationsToSave;
 
     public BridgeStorageProvider(Repository repository, RskAddress contractAddress, BridgeConstants bridgeConstants, ActivationConfig.ForBlock activations) {
         this.repository = repository;
@@ -594,38 +596,78 @@ public class BridgeStorageProvider {
             safeSaveToRepository(getStorageKeyForCoinbaseInformation(blockHash), data, BridgeSerializationUtils::serializeCoinbaseInformation));
     }
 
-    public byte[] getFastBridgeFederationP2SH(Sha256Hash derivationArgsHash) {
+    public Optional<byte[]> getFastBridgeFederationScriptHash(Sha256Hash derivationArgsHash) {
         if (!activations.isActive(RSKIP176)) {
-            return null;
+            return Optional.empty();
         }
 
         byte[] fastBridgeFedP2SH = repository.getStorageBytes(contractAddress, getStorageKeyForDerivationP2SHByHash(derivationArgsHash));
 
-        return fastBridgeFedP2SH;
+        if (fastBridgeFedP2SH == null ) {
+            return Optional.empty();
+        }
+
+        return Optional.of(fastBridgeFedP2SH);
     }
 
-    public void setDerivationArgumentsP2SH(Sha256Hash derivationArgsHash, byte[] fastBridgeFedP2SH) {
+    public void setDerivationArgumentsScriptHash(Sha256Hash derivationArgsHash, byte[] fastBridgeFedP2SH) {
         if (activations.isActive(RSKIP176)) {
-            if (derivationArgumentsP2SHToSave == null) {
-                derivationArgumentsP2SHToSave = new HashMap<>();
+            if (fastBridgeDerivationArgumentsScriptHashToSave == null) {
+                fastBridgeDerivationArgumentsScriptHashToSave = new HashMap<>();
             }
-            derivationArgumentsP2SHToSave.put(derivationArgsHash, fastBridgeFedP2SH);
+            fastBridgeDerivationArgumentsScriptHashToSave.put(derivationArgsHash, fastBridgeFedP2SH);
         }
     }
 
-    protected Map<Sha256Hash, byte[]> getDerivationArgumentsP2SHToSave() {
-        return derivationArgumentsP2SHToSave;
-    }
-
-    private void saveDerivationArgumentsP2SH() {
-        if (derivationArgumentsP2SHToSave == null) {
+    private void saveDerivationArgumentsScriptHash() {
+        if (fastBridgeDerivationArgumentsScriptHashToSave == null) {
             return;
         }
 
-        derivationArgumentsP2SHToSave.forEach((derivationArgsHash, fastBridgeFedP2SH) ->
+        fastBridgeDerivationArgumentsScriptHashToSave.forEach((derivationArgsHash, fastBridgeFedP2SH) ->
                 repository.addStorageBytes(contractAddress, getStorageKeyForDerivationP2SHByHash(derivationArgsHash), fastBridgeFedP2SH)
         );
     }
+
+    public Optional<FastBridgeFederationInformation> getFastBridgeFederationInformation(Sha256Hash derivationArgsHash) {
+        if (!activations.isActive(RSKIP176)) {
+            return Optional.empty();
+        }
+
+        FastBridgeFederationInformation fastBridgeFedP2SH = this.safeGetFromRepository(
+                getStorageKeyForfastBridgeFederationInformation(derivationArgsHash),
+                BridgeSerializationUtils::deserializeFederationBridge
+        );
+        if (fastBridgeFedP2SH == null) {
+            return Optional.empty();
+        }
+
+        return Optional.of(fastBridgeFedP2SH);
+    }
+
+    public void setFastBridgeFederationInformation(Sha256Hash derivationArgsHash, FastBridgeFederationInformation fastBridgeFedP2SH) {
+        if (activations.isActive(RSKIP176)) {
+            if (fastBridgeFederationInformationsToSave == null) {
+                fastBridgeFederationInformationsToSave = new HashMap<>();
+            }
+            fastBridgeFederationInformationsToSave.put(derivationArgsHash, fastBridgeFedP2SH);
+        }
+    }
+
+    private void saveFastBridgeFederationInformation() {
+        if (fastBridgeFederationInformationsToSave == null) {
+            return;
+        }
+
+        fastBridgeFederationInformationsToSave.forEach((Sha256Hash derivationArgsHash, FastBridgeFederationInformation data) ->
+                safeSaveToRepository(
+                        getStorageKeyForfastBridgeFederationInformation(derivationArgsHash),
+                        data,
+                        BridgeSerializationUtils::serializeFederationBridge
+                )
+        );
+    }
+
 
     public void save() throws IOException {
         saveBtcTxHashesAlreadyProcessed();
@@ -655,7 +697,9 @@ public class BridgeStorageProvider {
 
         saveCoinbaseInformations();
 
-        saveDerivationArgumentsP2SH();
+        saveDerivationArgumentsScriptHash();
+
+        saveFastBridgeFederationInformation();
     }
 
     private DataWord getStorageKeyForBtcTxHashAlreadyProcessed(Sha256Hash btcTxHash) {
@@ -668,6 +712,10 @@ public class BridgeStorageProvider {
 
     private DataWord getStorageKeyForDerivationP2SHByHash(Sha256Hash derivationHash) {
         return DataWord.fromLongString("fastBridgeP2SH-" + derivationHash.toString());
+    }
+
+    private DataWord getStorageKeyForfastBridgeFederationInformation(Sha256Hash derivationHash) {
+        return DataWord.fromLongString("fastBridgeFederationInformation-" + derivationHash.toString());
     }
 
     private Optional<Integer> getStorageVersion(DataWord versionKey) {
